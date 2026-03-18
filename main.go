@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/heodongun/freeapi/cmd"
+	"github.com/bssm-oss/Free-API/cmd"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	"github.com/heodongun/freeapi/internal/models"
+	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // Provider is the interface all LLM providers must implement.

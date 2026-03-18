@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/heodongun/freeapi/internal/models"
+	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // mockProvider implements Provider for testing.
