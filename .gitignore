@@ -1,0 +1,16 @@
+# Binary
+freeapi
+freeapi-*
+*.exe
+
+# Data
+*.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Misc
+firebase-debug.log
+.DS_Store
