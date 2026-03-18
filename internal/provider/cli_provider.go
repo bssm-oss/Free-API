@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heodongun/freeapi/internal/models"
+	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // CLIProvider wraps an external AI CLI tool as a provider.

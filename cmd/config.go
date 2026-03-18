@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/heodongun/freeapi/internal/config"
+	"github.com/bssm-oss/Free-API/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

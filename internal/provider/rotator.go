@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/heodongun/freeapi/internal/models"
+	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // Rotator handles automatic provider rotation on rate limits.

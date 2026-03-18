@@ -1,6 +1,6 @@
 VERSION ?= 0.1.0
 BINARY = freeapi
-LDFLAGS = -s -w -X github.com/heodongun/freeapi/cmd.Version=$(VERSION)
+LDFLAGS = -s -w -X github.com/bssm-oss/Free-API/cmd.Version=$(VERSION)
 INSTALL_DIR = $(HOME)/.local/bin
 
 .PHONY: build install uninstall clean test vet cross

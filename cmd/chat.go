@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	appctx "github.com/heodongun/freeapi/internal/context"
-	"github.com/heodongun/freeapi/internal/config"
-	"github.com/heodongun/freeapi/internal/models"
-	"github.com/heodongun/freeapi/internal/provider"
+	appctx "github.com/bssm-oss/Free-API/internal/context"
+	"github.com/bssm-oss/Free-API/internal/config"
+	"github.com/bssm-oss/Free-API/internal/models"
+	"github.com/bssm-oss/Free-API/internal/provider"
 	"github.com/spf13/cobra"
 )
 

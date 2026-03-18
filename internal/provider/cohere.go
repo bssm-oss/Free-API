@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heodongun/freeapi/internal/models"
+	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // CohereProvider handles Cohere's chat API.

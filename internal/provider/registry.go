@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/heodongun/freeapi/internal/config"
-	"github.com/heodongun/freeapi/internal/models"
+	"github.com/bssm-oss/Free-API/internal/config"
+	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // Registry manages all providers sorted by priority.
@@ -62,7 +62,7 @@ func createProvider(name string, cfg models.ProviderConfig) Provider {
 
 	case "openrouter":
 		headers := map[string]string{
-			"HTTP-Referer": "https://github.com/heodongun/freeapi",
+			"HTTP-Referer": "https://github.com/bssm-oss/Free-API",
 			"X-Title":      "freeapi",
 		}
 		return NewOpenAICompat("openrouter", cfg.APIKey, cfg.BaseURL, cfg.Model, headers)

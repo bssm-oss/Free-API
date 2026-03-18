@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/heodongun/freeapi/internal/config"
-	"github.com/heodongun/freeapi/internal/models"
-	"github.com/heodongun/freeapi/internal/provider"
+	"github.com/bssm-oss/Free-API/internal/config"
+	"github.com/bssm-oss/Free-API/internal/models"
+	"github.com/bssm-oss/Free-API/internal/provider"
 	"github.com/spf13/cobra"
 )
 

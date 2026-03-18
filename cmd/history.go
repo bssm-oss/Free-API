@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	appctx "github.com/heodongun/freeapi/internal/context"
-	"github.com/heodongun/freeapi/internal/config"
+	appctx "github.com/bssm-oss/Free-API/internal/context"
+	"github.com/bssm-oss/Free-API/internal/config"
 	"github.com/spf13/cobra"
 )
 

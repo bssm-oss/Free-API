@@ -1,4 +1,4 @@
-module github.com/heodongun/freeapi
+module github.com/bssm-oss/Free-API
 
 go 1.26.1
 

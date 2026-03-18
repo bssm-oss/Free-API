@@ -4,17 +4,32 @@
 
 ## 설치
 
+### go install (추천)
+
 ```bash
-git clone https://github.com/heodongun/freeapi.git
-cd freeapi
-make install
+go install github.com/bssm-oss/Free-API@latest
 ```
 
-설치 위치: `~/.local/bin/freeapi` (대부분의 시스템에서 PATH에 포함됨)
+`$GOPATH/bin`에 `Free-API` 바이너리가 설치됩니다. 별칭을 만들면 편합니다:
+
+```bash
+# ~/.zshrc 또는 ~/.bashrc에 추가
+alias freeapi="Free-API"
+```
+
+> `$GOPATH/bin`이 PATH에 없다면: `export PATH="$PATH:$(go env GOPATH)/bin"` 을 쉘 설정에 추가하세요.
+
+### 소스에서 빌드
+
+```bash
+git clone https://github.com/bssm-oss/Free-API.git
+cd Free-API
+make install    # ~/.local/bin/freeapi에 설치
+```
 
 > **Go가 없다면**: [go.dev/dl](https://go.dev/dl/) 에서 설치하세요.
 
-설치 후 새 터미널을 열고:
+### 설치 확인
 
 ```bash
 freeapi version    # 동작 확인
