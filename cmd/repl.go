@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	appctx "github.com/bssm-oss/Free-API/internal/context"
 	"github.com/bssm-oss/Free-API/internal/config"
+	appctx "github.com/bssm-oss/Free-API/internal/context"
 	"github.com/bssm-oss/Free-API/internal/models"
 	"github.com/bssm-oss/Free-API/internal/provider"
 )
@@ -37,8 +37,8 @@ func runInteractive() error {
 	avail := registry.Available()
 	fmt.Printf("freeapi v%s — %d/%d providers ready\n", Version, len(avail), registry.Count())
 	if len(avail) == 0 {
-		fmt.Println("⚠️  No API keys configured. Run: freeapi config set <provider>.api_key <key>")
-		fmt.Println("   Providers: gemini, groq, cerebras, mistral, openrouter, cohere, github")
+		fmt.Println("⚠️  No providers available. Run: freeapi setup")
+		fmt.Println("   Or configure credentials with: freeapi config set <provider>.api_key <key>")
 		return nil
 	}
 	for _, s := range rotator.Status() {

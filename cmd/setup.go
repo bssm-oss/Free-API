@@ -38,8 +38,8 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		fmt.Println("  No AI CLIs found.")
 		fmt.Println()
 		fmt.Println("  Install one with:")
-		fmt.Println("    npm i -g @anthropic-ai/claude-code   # Claude")
-		fmt.Println("    npm i -g @anthropic-ai/claude-code   # Gemini (if not installed)")
+		fmt.Println("    brew install gemini-cli              # Gemini CLI")
+		fmt.Println("    npm i -g @anthropic-ai/claude-code   # Claude Code")
 		fmt.Println("    brew install codex                    # Codex")
 	}
 	fmt.Println()
@@ -51,9 +51,9 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		bin     string
 		install string
 	}{
-		{"Gemini CLI", "gemini", "npm i -g @anthropic-ai/claude-code  # or brew install gemini"},
+		{"Gemini CLI", "gemini", "brew install gemini-cli  OR  npm install -g @google/gemini-cli"},
 		{"Claude CLI", "claude", "npm i -g @anthropic-ai/claude-code"},
-		{"Codex CLI", "codex", "brew install codex"},
+		{"Codex CLI", "codex", "brew install codex  OR  cargo install codex-cli"},
 		{"Copilot CLI", "copilot", "gh extension install github/gh-copilot"},
 		{"OpenCode", "opencode", "go install github.com/opencode-ai/opencode@latest"},
 	}
@@ -71,31 +71,38 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	// 3. Check API-based providers
 	fmt.Println("━━━ API Providers (optional) ━━━")
-	cfg, err := config.Load()
+	cfg, err := config.LoadRaw()
 	if err != nil {
 		return err
 	}
 
 	apiProviders := []struct {
-		name    string
-		display string
-		url     string
+		name         string
+		display      string
+		url          string
+		needsAccount bool
 	}{
-		{"gemini", "Google Gemini API", "https://ai.google.dev"},
-		{"groq", "Groq", "https://console.groq.com/keys"},
-		{"cerebras", "Cerebras", "https://cloud.cerebras.ai/"},
-		{"openrouter", "OpenRouter", "https://openrouter.ai/keys"},
-		{"github", "GitHub Models", "GITHUB_TOKEN from gh auth token"},
+		{"gemini", "Google Gemini API", "https://ai.google.dev", false},
+		{"groq", "Groq", "https://console.groq.com/keys", false},
+		{"cerebras", "Cerebras", "https://cloud.cerebras.ai/", false},
+		{"mistral", "Mistral", "https://console.mistral.ai/api-keys", false},
+		{"openrouter", "OpenRouter", "https://openrouter.ai/keys", false},
+		{"cohere", "Cohere", "https://dashboard.cohere.com/api-keys", false},
+		{"github", "GitHub Models", "GITHUB_TOKEN from gh auth token", false},
+		{"cloudflare", "Cloudflare Workers AI", "https://dash.cloudflare.com/profile/api-tokens", true},
 	}
 
 	hasKey := 0
 	for _, p := range apiProviders {
 		pcfg := cfg.Providers[p.name]
-		if pcfg.APIKey != "" {
+		if pcfg.APIKey != "" && (!p.needsAccount || pcfg.AccountID != "") {
 			fmt.Printf("  ✅ %s — configured\n", p.display)
 			hasKey++
 		} else {
 			fmt.Printf("  ○  %s — %s\n", p.display, p.url)
+			if p.needsAccount && pcfg.AccountID == "" {
+				fmt.Println("     also needs CLOUDFLARE_ACCOUNT_ID or cloudflare.account_id")
+			}
 		}
 	}
 
@@ -112,7 +119,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		changed := false
 		for _, p := range apiProviders {
 			pcfg := cfg.Providers[p.name]
-			if pcfg.APIKey != "" {
+			if pcfg.APIKey != "" && (!p.needsAccount || pcfg.AccountID != "") {
 				continue // already set
 			}
 			fmt.Printf("  %s key (Enter to skip): ", p.display)
@@ -122,6 +129,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 			key := strings.TrimSpace(scanner.Text())
 			if key != "" {
 				pcfg.APIKey = key
+				if p.needsAccount && pcfg.AccountID == "" {
+					fmt.Printf("  %s account ID (Enter to skip): ", p.display)
+					if !scanner.Scan() {
+						break
+					}
+					pcfg.AccountID = strings.TrimSpace(scanner.Text())
+				}
 				cfg.Providers[p.name] = pcfg
 				changed = true
 				fmt.Println("  ✅ Set!")

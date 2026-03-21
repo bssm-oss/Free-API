@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -67,11 +68,31 @@ func KnownCLIs() []CLIProviderConfig {
 
 // BinNames maps CLI provider names to their binary names.
 var BinNames = map[string]string{
-	"gemini-cli":  "gemini",
-	"claude-cli":  "claude",
-	"codex-cli":   "codex",
-	"copilot-cli": "copilot",
+	"gemini-cli":   "gemini",
+	"claude-cli":   "claude",
+	"codex-cli":    "codex",
+	"copilot-cli":  "copilot",
 	"opencode-cli": "opencode",
+}
+
+var defaultCLIPriorities = map[string]int{
+	"gemini-cli":   10,
+	"claude-cli":   20,
+	"codex-cli":    30,
+	"copilot-cli":  40,
+	"opencode-cli": 50,
+}
+
+func IsKnownCLI(name string) bool {
+	_, ok := BinNames[name]
+	return ok
+}
+
+func DefaultCLIPriority(name string) int {
+	if priority, ok := defaultCLIPriorities[name]; ok {
+		return priority
+	}
+	return 100
 }
 
 // DetectCLIs finds installed AI CLIs and returns providers for them.
@@ -103,8 +124,8 @@ func NewCLIProvider(name, binPath string, args func(string) []string) *CLIProvid
 	}
 }
 
-func (p *CLIProvider) Name() string        { return p.name }
-func (p *CLIProvider) DefaultModel() string { return p.binPath }
+func (p *CLIProvider) Name() string         { return p.name }
+func (p *CLIProvider) DefaultModel() string { return filepath.Base(p.binPath) }
 
 func (p *CLIProvider) IsAvailable() bool {
 	p.mu.Lock()
@@ -186,21 +207,52 @@ func (p *CLIProvider) ChatStream(ctx context.Context, messages []models.Message,
 }
 
 func extractPrompt(messages []models.Message) string {
-	// Get last user message, prepend system prompt if any
-	var systemPrompt, lastUserMsg string
+	var prompt strings.Builder
+	var sawConversation bool
+
 	for _, m := range messages {
+		content := strings.TrimSpace(m.Content)
+		if content == "" {
+			continue
+		}
+
 		switch m.Role {
 		case "system":
-			systemPrompt = m.Content
+			if prompt.Len() > 0 {
+				prompt.WriteString("\n\n")
+			}
+			prompt.WriteString("System instructions:\n")
+			prompt.WriteString(content)
 		case "user":
-			lastUserMsg = m.Content
+			if !sawConversation {
+				if prompt.Len() > 0 {
+					prompt.WriteString("\n\n")
+				}
+				prompt.WriteString("Conversation:\n")
+				sawConversation = true
+			}
+			prompt.WriteString("User:\n")
+			prompt.WriteString(content)
+			prompt.WriteString("\n\n")
+		case "assistant":
+			if !sawConversation {
+				if prompt.Len() > 0 {
+					prompt.WriteString("\n\n")
+				}
+				prompt.WriteString("Conversation:\n")
+				sawConversation = true
+			}
+			prompt.WriteString("Assistant:\n")
+			prompt.WriteString(content)
+			prompt.WriteString("\n\n")
 		}
 	}
 
-	if systemPrompt != "" && lastUserMsg != "" {
-		return systemPrompt + "\n\n" + lastUserMsg
+	if sawConversation {
+		prompt.WriteString("Assistant:")
 	}
-	return lastUserMsg
+
+	return strings.TrimSpace(prompt.String())
 }
 
 func isQuotaError(output string) bool {

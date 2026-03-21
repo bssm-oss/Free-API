@@ -3,17 +3,16 @@ package context
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 
 	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 // Manager handles conversation context with trimming strategies.
 type Manager struct {
-	store          *Store
-	maxMessages    int
-	strategy       string
-	systemPrompt   string
+	store        *Store
+	maxMessages  int
+	strategy     string
+	systemPrompt string
 }
 
 // NewManager creates a context manager.
@@ -49,12 +48,11 @@ func (m *Manager) NewConversation(systemPrompt string) (string, error) {
 // If convID is specified, returns that. Otherwise creates a new one.
 func (m *Manager) GetOrContinue(convID string, continueLastConv bool, systemPrompt string) (string, bool, error) {
 	if convID != "" {
-		// Verify it exists
-		_, err := m.store.GetConversation(convID)
+		resolvedID, err := m.store.ResolveConversationID(convID)
 		if err != nil {
-			return "", false, fmt.Errorf("conversation %s not found", convID)
+			return "", false, err
 		}
-		return convID, true, nil
+		return resolvedID, true, nil
 	}
 
 	if continueLastConv {
