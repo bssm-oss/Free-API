@@ -2,10 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
-	appctx "github.com/bssm-oss/Free-API/internal/context"
 	"github.com/bssm-oss/Free-API/internal/config"
+	appctx "github.com/bssm-oss/Free-API/internal/context"
 	"github.com/bssm-oss/Free-API/internal/models"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +39,7 @@ Examples:
 		defer store.Close()
 
 		// Find conversation
-		convID, err := findConvByPrefix(store, args[0])
+		convID, err := store.ResolveConversationID(args[0])
 		if err != nil {
 			return err
 		}
@@ -101,17 +100,4 @@ func exportText(conv *models.Conversation) error {
 		}
 	}
 	return nil
-}
-
-func findConvByPrefix(store *appctx.Store, prefix string) (string, error) {
-	convs, err := store.ListConversations(100)
-	if err != nil {
-		return "", err
-	}
-	for _, c := range convs {
-		if strings.HasPrefix(c.ID, prefix) {
-			return c.ID, nil
-		}
-	}
-	return "", fmt.Errorf("conversation not found: %s", prefix)
 }

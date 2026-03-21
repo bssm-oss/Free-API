@@ -58,9 +58,9 @@ freeapi는 두 가지 방식으로 LLM을 호출합니다:
 
 ```bash
 # Gemini CLI (Google, 무료)
-npm i -g @anthropic-ai/gemini-cli
+npm install -g @google/gemini-cli
 # 또는
-brew install gemini
+brew install gemini-cli
 
 # Claude Code (Anthropic)
 npm i -g @anthropic-ai/claude-code
@@ -69,7 +69,7 @@ npm i -g @anthropic-ai/claude-code
 brew install codex
 
 # Copilot CLI (GitHub)
-npm i -g @anthropic-ai/copilot-cli
+# 공식 설치 가이드를 참고
 
 # OpenCode
 curl -fsSL https://opencode.ai/install | bash
@@ -88,6 +88,7 @@ curl -fsSL https://opencode.ai/install | bash
 | **OpenRouter** | deepseek-r1 등 27+ | 50 요청/일 | `OPENROUTER_API_KEY` |
 | **Cohere** | command-r-plus | 1,000 요청/월 | `COHERE_API_KEY` |
 | **GitHub Models** | gpt-4o | 50 요청/일 | `GITHUB_TOKEN` |
+| **Cloudflare Workers AI** | @cf/meta/llama-3.3-70b-instruct-fp8-fast | 계정별 상이 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` |
 
 API 키 발급:
 ```bash
@@ -95,6 +96,8 @@ API 키 발급:
 export GROQ_API_KEY="gsk_..."         # https://console.groq.com/keys
 export GEMINI_API_KEY="AIza..."       # https://ai.google.dev
 export GITHUB_TOKEN="$(gh auth token)" # GitHub CLI가 있다면
+export CLOUDFLARE_API_TOKEN="..."     # https://dash.cloudflare.com/profile/api-tokens
+export CLOUDFLARE_ACCOUNT_ID="..."    # Cloudflare account ID
 
 # 또는 대화형 설정
 freeapi setup
@@ -205,6 +208,9 @@ freeapi version                버전 정보
 ```bash
 freeapi config set gemini.api_key "AIza..."
 freeapi config set groq.model "llama-3.1-8b-instant"
+freeapi config set cloudflare.account_id "..."
+freeapi config set codex-cli.enabled false
+freeapi config set max_context_messages 100
 freeapi config set default_system_prompt "한국어로 답해줘"
 ```
 

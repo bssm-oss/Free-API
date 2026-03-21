@@ -19,10 +19,10 @@ var scanCmd = &cobra.Command{
 			bin     string
 			install string
 		}{
-			{"Gemini CLI", "gemini", "npm i -g @anthropic-ai/gemini-cli"},
+			{"Gemini CLI", "gemini", "npm install -g @google/gemini-cli  OR  brew install gemini-cli"},
 			{"Claude Code", "claude", "npm i -g @anthropic-ai/claude-code"},
 			{"Codex CLI", "codex", "brew install codex  OR  cargo install codex-cli"},
-			{"Copilot CLI", "copilot", "npm i -g @anthropic-ai/copilot-cli"},
+			{"Copilot CLI", "copilot", "install GitHub Copilot CLI"},
 			{"OpenCode", "opencode", "curl -fsSL https://opencode.ai/install | bash"},
 		}
 

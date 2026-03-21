@@ -9,11 +9,11 @@ import (
 )
 
 type Config struct {
-	Providers          map[string]models.ProviderConfig `yaml:"providers"`
-	DefaultSystemPrompt string                          `yaml:"default_system_prompt"`
-	MaxContextMessages  int                             `yaml:"max_context_messages"`
-	ContextStrategy     string                          `yaml:"context_strategy"`
-	DBPath              string                          `yaml:"db_path"`
+	Providers           map[string]models.ProviderConfig `yaml:"providers"`
+	DefaultSystemPrompt string                           `yaml:"default_system_prompt"`
+	MaxContextMessages  int                              `yaml:"max_context_messages"`
+	ContextStrategy     string                           `yaml:"context_strategy"`
+	DBPath              string                           `yaml:"db_path"`
 }
 
 func DefaultConfig() *Config {
@@ -101,8 +101,13 @@ var EnvVarMap = map[string][]string{
 	"cloudflare": {"CLOUDFLARE_API_TOKEN", "CF_API_TOKEN"},
 }
 
-// Load reads config from disk, falling back to defaults.
-func Load() (*Config, error) {
+var ProviderFieldEnvVarMap = map[string]map[string][]string{
+	"cloudflare": {
+		"account_id": {"CLOUDFLARE_ACCOUNT_ID", "CF_ACCOUNT_ID"},
+	},
+}
+
+func load(applyEnv bool) (*Config, error) {
 	cfg := DefaultConfig()
 
 	data, err := os.ReadFile(ConfigPath())
@@ -117,17 +122,10 @@ func Load() (*Config, error) {
 		}
 	}
 
-	// Fill API keys from env vars if not set in config
-	for name, envVars := range EnvVarMap {
-		if p, ok := cfg.Providers[name]; ok && p.APIKey == "" {
-			for _, envVar := range envVars {
-				if v := os.Getenv(envVar); v != "" {
-					p.APIKey = v
-					cfg.Providers[name] = p
-					break
-				}
-			}
-		}
+	applyProviderDefaults(cfg)
+
+	if applyEnv {
+		applyEnvOverrides(cfg)
 	}
 
 	if cfg.DBPath == "" {
@@ -135,6 +133,81 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// Load reads config from disk and applies environment variable overrides.
+func Load() (*Config, error) {
+	return load(true)
+}
+
+// LoadRaw reads config from disk without applying environment variable overrides.
+// Use this when mutating the config file so env-sourced secrets are not persisted.
+func LoadRaw() (*Config, error) {
+	return load(false)
+}
+
+func applyProviderDefaults(cfg *Config) {
+	if cfg.Providers == nil {
+		cfg.Providers = make(map[string]models.ProviderConfig)
+	}
+
+	defaults := DefaultConfig()
+	for name, def := range defaults.Providers {
+		cur, ok := cfg.Providers[name]
+		if !ok {
+			cfg.Providers[name] = def
+			continue
+		}
+		if cur.Model == "" {
+			cur.Model = def.Model
+		}
+		if cur.Priority == 0 {
+			cur.Priority = def.Priority
+		}
+		if cur.BaseURL == "" {
+			cur.BaseURL = def.BaseURL
+		}
+		cfg.Providers[name] = cur
+	}
+}
+
+func applyEnvOverrides(cfg *Config) {
+	// Fill API keys from env vars if not set in config
+	for name, envVars := range EnvVarMap {
+		p, ok := cfg.Providers[name]
+		if !ok || p.APIKey != "" {
+			continue
+		}
+		for _, envVar := range envVars {
+			if v := os.Getenv(envVar); v != "" {
+				p.APIKey = v
+				cfg.Providers[name] = p
+				break
+			}
+		}
+	}
+
+	for name, fieldEnvMap := range ProviderFieldEnvVarMap {
+		p, ok := cfg.Providers[name]
+		if !ok {
+			continue
+		}
+		for field, envVars := range fieldEnvMap {
+			switch field {
+			case "account_id":
+				if p.AccountID != "" {
+					continue
+				}
+				for _, envVar := range envVars {
+					if v := os.Getenv(envVar); v != "" {
+						p.AccountID = v
+						cfg.Providers[name] = p
+						break
+					}
+				}
+			}
+		}
+	}
 }
 
 // Save writes config to disk.

@@ -19,7 +19,7 @@ type mockProvider struct {
 	rateLimit models.RateLimitInfo
 }
 
-func (m *mockProvider) Name() string        { return m.name }
+func (m *mockProvider) Name() string         { return m.name }
 func (m *mockProvider) DefaultModel() string { return m.model }
 func (m *mockProvider) IsAvailable() bool    { return m.available }
 
