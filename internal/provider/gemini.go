@@ -26,8 +26,8 @@ type GeminiProvider struct {
 }
 
 type geminiRequest struct {
-	Contents         []geminiContent        `json:"contents"`
-	SystemInstruction *geminiContent        `json:"systemInstruction,omitempty"`
+	Contents          []geminiContent `json:"contents"`
+	SystemInstruction *geminiContent  `json:"systemInstruction,omitempty"`
 }
 
 type geminiContent struct {
@@ -77,7 +77,7 @@ func NewGemini(apiKey, baseURL, defaultModel string) *GeminiProvider {
 	}
 }
 
-func (p *GeminiProvider) Name() string        { return "gemini" }
+func (p *GeminiProvider) Name() string         { return "gemini" }
 func (p *GeminiProvider) DefaultModel() string { return p.defaultModel }
 
 func (p *GeminiProvider) IsAvailable() bool {
@@ -208,6 +208,7 @@ func (p *GeminiProvider) ChatStream(ctx context.Context, messages []models.Messa
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {
@@ -227,6 +228,10 @@ func (p *GeminiProvider) ChatStream(ctx context.Context, messages []models.Messa
 					}
 				}
 			}
+		}
+		if err := scanner.Err(); err != nil {
+			ch <- models.StreamChunk{Error: err}
+			return
 		}
 		ch <- models.StreamChunk{Done: true}
 	}()
