@@ -92,6 +92,7 @@ API providers (키 필요, CLI 실패 시 fallback)
   10. openrouter  → OpenRouter (openrouter.ai, OpenAI 호환)
   11. cohere      → Cohere API (api.cohere.ai)
   12. github      → GitHub Models (models.inference.ai.azure.com, OpenAI 호환)
+  13. cloudflare  → Cloudflare Workers AI (api.cloudflare.com, OpenAI 호환)
 ```
 
 ### 3. Provider 인터페이스

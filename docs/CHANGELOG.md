@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Cloudflare Workers AI 지원**
+  - `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`로 설정 가능
+  - OpenAI 호환 endpoint로 fallback 체인에 포함
+
+### Improved
+
+- **CLI provider 설정 가능**
+  - `codex-cli.enabled=false` 같은 형태로 비활성화 가능
+  - CLI provider priority 조정 가능
+- **대화 UX 개선**
+  - `chat --cid`에서 짧은 prefix ID 지원
+  - 최근 대화 선택 로직을 더 결정적으로 정렬
+  - CLI backend에서도 멀티턴 대화 히스토리를 prompt에 반영
+- **설정 안정성 개선**
+  - `max_context_messages`, `db_path`, `cloudflare.account_id`를 `config set`으로 변경 가능
+  - config 저장 시 env에서 주입된 비밀값이 파일에 불필요하게 저장되지 않도록 분리
+- **테스트 확대**
+  - config, context, provider, cmd 계층 회귀 테스트 추가
+
 ## v0.1.0 (2026-03-18)
 
 최초 릴리스.
@@ -53,7 +76,7 @@
 
 ### 테스트
 
-- 23개 단위 테스트 (rotator, store, manager, config)
+- 단위 테스트 (rotator, store, manager, config)
 - go vet 통과
 - 실제 API 검증 (GitHub Models GPT-4o, Gemini CLI)
 
@@ -62,4 +85,3 @@
 - Codex CLI: OpenAI 크레딧 필요 (무료 한도 소진 시 에러)
 - Copilot CLI: 첫 응답이 느릴 수 있음 (MCP 서버 초기화)
 - CLI provider는 스트리밍 미지원 (전체 응답 후 출력)
-- Cloudflare Workers AI: 아직 미구현 (account_id 필요)

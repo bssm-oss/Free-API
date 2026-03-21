@@ -3,7 +3,7 @@
 ## 환경 설정
 
 ```bash
-# Go 1.22+ 필요
+# Go 1.26.1+ 필요
 go version
 
 # 소스 클론
@@ -31,13 +31,14 @@ go test ./internal/context/ -v
 go test ./internal/config/ -v
 ```
 
-현재 테스트 (23개):
+현재 테스트:
 
 | 패키지 | 테스트 수 | 내용 |
 |--------|----------|------|
-| `internal/provider` | 6 | rotator fallback, stream, skip unavailable |
-| `internal/context` | 13 | store CRUD, manager lifecycle, sliding window |
-| `internal/config` | 4 | default config, env var mapping |
+| `cmd` | 4 | config parsing, validation |
+| `internal/provider` | 11 | rotator, CLI prompt/quota logic, Cloudflare |
+| `internal/context` | 16 | store CRUD, prefix lookup, ordering, manager lifecycle |
+| `internal/config` | 7 | defaults, env override, raw load |
 
 ## 크로스 컴파일
 

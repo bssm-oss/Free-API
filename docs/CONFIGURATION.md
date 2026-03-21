@@ -50,6 +50,7 @@ providers:
         base_url: https://models.inference.ai.azure.com
     cloudflare:
         api_key: ""                    # 또는 CLOUDFLARE_API_TOKEN / CF_API_TOKEN
+        account_id: ""                 # 또는 CLOUDFLARE_ACCOUNT_ID / CF_ACCOUNT_ID
         model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
         priority: 8
         enabled: true
@@ -74,6 +75,12 @@ db_path: ""                            # 비우면 ~/.local/share/freeapi/conver
 | github | `GITHUB_TOKEN` |
 | cloudflare | `CLOUDFLARE_API_TOKEN`, `CF_API_TOKEN` |
 
+Cloudflare 추가 필드:
+
+| Provider | 추가 환경변수 |
+|----------|--------------|
+| cloudflare | `CLOUDFLARE_ACCOUNT_ID`, `CF_ACCOUNT_ID` |
+
 ### 환경변수 설정 예시
 
 ```bash
@@ -81,6 +88,8 @@ db_path: ""                            # 비우면 ~/.local/share/freeapi/conver
 export GROQ_API_KEY="gsk_xxxxxxxxxxxxx"
 export GEMINI_API_KEY="AIzaxxxxxxxxxxxxxxx"
 export GITHUB_TOKEN="$(gh auth token)"    # GitHub CLI 있으면
+export CLOUDFLARE_API_TOKEN="..."
+export CLOUDFLARE_ACCOUNT_ID="..."
 ```
 
 ## config 명령어
@@ -95,6 +104,8 @@ freeapi config list
 # API 키 설정
 freeapi config set gemini.api_key "AIza..."
 freeapi config set groq.api_key "gsk_..."
+freeapi config set cloudflare.api_key "..."
+freeapi config set cloudflare.account_id "..."
 
 # 모델 변경
 freeapi config set gemini.model "gemini-2.5-pro"
@@ -109,6 +120,13 @@ freeapi config set default_system_prompt "한국어로 답해줘"
 # 컨텍스트 전략
 freeapi config set context_strategy "sliding_window"
 freeapi config set max_context_messages 100
+
+# DB 위치 변경
+freeapi config set db_path "/tmp/freeapi.db"
+
+# CLI provider 비활성화/우선순위 조정
+freeapi config set codex-cli.enabled false
+freeapi config set claude-cli.priority 5
 ```
 
 ## 데이터 저장 위치
@@ -121,7 +139,7 @@ freeapi config set max_context_messages 100
 ## 우선순위 규칙
 
 1. **환경변수** > config 파일 (API 키)
-2. **CLI provider** > API provider (로테이션 순서)
+2. **CLI provider** > API provider (기본 로테이션 순서, priority로 조정 가능)
 3. **`--provider` 플래그** > 자동 로테이션 (명시적 지정)
 4. **`--model` 플래그** > config의 기본 모델
 
