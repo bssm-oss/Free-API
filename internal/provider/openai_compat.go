@@ -30,11 +30,11 @@ type OpenAICompatProvider struct {
 }
 
 type openaiRequest struct {
-	Model       string           `json:"model"`
-	Messages    []openaiMessage  `json:"messages"`
-	Stream      bool             `json:"stream,omitempty"`
-	Temperature *float64         `json:"temperature,omitempty"`
-	MaxTokens   *int             `json:"max_tokens,omitempty"`
+	Model       string          `json:"model"`
+	Messages    []openaiMessage `json:"messages"`
+	Stream      bool            `json:"stream,omitempty"`
+	Temperature *float64        `json:"temperature,omitempty"`
+	MaxTokens   *int            `json:"max_tokens,omitempty"`
 }
 
 type openaiMessage struct {
@@ -88,7 +88,7 @@ func (p *OpenAICompatProvider) Name() string { return p.name }
 func (p *OpenAICompatProvider) DefaultModel() string { return p.defaultModel }
 
 func (p *OpenAICompatProvider) IsAvailable() bool {
-	if p.apiKey == "" {
+	if p.apiKey == "" || p.baseURL == "" {
 		return false
 	}
 	p.mu.Lock()
@@ -244,6 +244,7 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, messages []models
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {

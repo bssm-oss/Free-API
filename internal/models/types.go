@@ -4,7 +4,7 @@ import "time"
 
 // Message represents a single chat message.
 type Message struct {
-	Role    string `json:"role"`    // system, user, assistant
+	Role    string `json:"role"` // system, user, assistant
 	Content string `json:"content"`
 }
 
@@ -52,9 +52,10 @@ type RateLimitInfo struct {
 
 // ProviderConfig holds config for a single provider.
 type ProviderConfig struct {
-	APIKey   string `yaml:"api_key"`
-	Model    string `yaml:"model"`
-	Priority int    `yaml:"priority"`
-	Enabled  bool   `yaml:"enabled"`
-	BaseURL  string `yaml:"base_url,omitempty"`
+	APIKey    string `yaml:"api_key"`
+	AccountID string `yaml:"account_id,omitempty"`
+	Model     string `yaml:"model"`
+	Priority  int    `yaml:"priority"`
+	Enabled   bool   `yaml:"enabled"`
+	BaseURL   string `yaml:"base_url,omitempty"`
 }
