@@ -178,3 +178,55 @@ func TestClearAll(t *testing.T) {
 		t.Errorf("expected 0 after clear, got %d", len(convs))
 	}
 }
+
+func TestResolveConversationIDUniquePrefix(t *testing.T) {
+	store, cleanup := tempDB(t)
+	defer cleanup()
+
+	if err := store.CreateConversation("abc1234567890000", "", ""); err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	resolved, err := store.ResolveConversationID("abc12345")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolved != "abc1234567890000" {
+		t.Fatalf("expected full id, got %q", resolved)
+	}
+}
+
+func TestResolveConversationIDAmbiguousPrefix(t *testing.T) {
+	store, cleanup := tempDB(t)
+	defer cleanup()
+
+	store.CreateConversation("abc1234567890000", "", "")
+	store.CreateConversation("abc12345ffff0000", "", "")
+
+	if _, err := store.ResolveConversationID("abc12345"); err == nil {
+		t.Fatal("expected ambiguous prefix error")
+	}
+}
+
+func TestLastConversationIDUsesLatestMessageOrder(t *testing.T) {
+	store, cleanup := tempDB(t)
+	defer cleanup()
+
+	store.CreateConversation("older", "", "")
+	store.CreateConversation("newer", "", "")
+
+	if err := store.AddMessage("older", models.Message{Role: "user", Content: "first"}, "", "", 0, 0); err != nil {
+		t.Fatalf("add message: %v", err)
+	}
+	if err := store.AddMessage("newer", models.Message{Role: "user", Content: "second"}, "", "", 0, 0); err != nil {
+		t.Fatalf("add message: %v", err)
+	}
+
+	lastID, err := store.LastConversationID()
+	if err != nil {
+		t.Fatalf("last conversation: %v", err)
+	}
+	if lastID != "newer" {
+		t.Fatalf("expected newer, got %q", lastID)
+	}
+}

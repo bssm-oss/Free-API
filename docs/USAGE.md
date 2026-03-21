@@ -200,10 +200,13 @@ CLI 자동감지 → API 키 설정까지 안내합니다.
 export GEMINI_API_KEY="AIza..."
 export GROQ_API_KEY="gsk_..."
 export GITHUB_TOKEN="$(gh auth token)"
+export CLOUDFLARE_API_TOKEN="..."
+export CLOUDFLARE_ACCOUNT_ID="..."
 
 # 또는 config 명령
 freeapi config set gemini.api_key "AIza..."
 freeapi config set groq.api_key "gsk_..."
+freeapi config set cloudflare.account_id "..."
 ```
 
 ### 기타 설정
@@ -218,6 +221,9 @@ freeapi config set groq.model "llama-3.1-8b-instant"
 
 # 컨텍스트 크기
 freeapi config set max_context_messages 100
+
+# CLI provider 비활성화
+freeapi config set codex-cli.enabled false
 
 # 현재 설정 확인
 freeapi config list

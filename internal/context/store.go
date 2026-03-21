@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bssm-oss/Free-API/internal/models"
@@ -153,7 +154,14 @@ func (s *Store) GetConversation(convID string) (*models.Conversation, error) {
 func (s *Store) LastConversationID() (string, error) {
 	var id string
 	err := s.db.QueryRow(
-		`SELECT id FROM conversations ORDER BY updated_at DESC LIMIT 1`,
+		`SELECT c.id
+		 FROM conversations c
+		 ORDER BY
+		   COALESCE((SELECT MAX(id) FROM messages WHERE conversation_id = c.id), 0) DESC,
+		   c.updated_at DESC,
+		   c.created_at DESC,
+		   c.id DESC
+		 LIMIT 1`,
 	).Scan(&id)
 	if err == sql.ErrNoRows {
 		return "", fmt.Errorf("no conversations found")
@@ -173,7 +181,11 @@ func (s *Store) ListConversations(limit int) ([]ConversationSummary, error) {
 			   (SELECT content FROM messages WHERE conversation_id = c.id AND role = 'user' ORDER BY id ASC LIMIT 1) as first_msg
 		FROM conversations c
 		WHERE (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) > 0
-		ORDER BY c.updated_at DESC
+		ORDER BY
+			(SELECT MAX(id) FROM messages WHERE conversation_id = c.id) DESC,
+			c.updated_at DESC,
+			c.created_at DESC,
+			c.id DESC
 		LIMIT ?
 	`, limit)
 	if err != nil {
@@ -194,6 +206,47 @@ func (s *Store) ListConversations(limit int) ([]ConversationSummary, error) {
 		convs = append(convs, cs)
 	}
 	return convs, rows.Err()
+}
+
+// ResolveConversationID resolves an exact or unique prefix match.
+func (s *Store) ResolveConversationID(prefix string) (string, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return "", fmt.Errorf("conversation ID is required")
+	}
+
+	rows, err := s.db.Query(
+		`SELECT id FROM conversations WHERE id LIKE ? ORDER BY id ASC LIMIT 2`,
+		prefix+"%",
+	)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var matches []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		if id == prefix {
+			return id, nil
+		}
+		matches = append(matches, id)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("conversation not found: %s", prefix)
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("conversation prefix is ambiguous: %s", prefix)
+	}
 }
 
 // DeleteConversation removes a conversation and its messages atomically.

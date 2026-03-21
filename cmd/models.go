@@ -52,6 +52,11 @@ var modelsCmd = &cobra.Command{
 		fmt.Println("    gpt-4.1                 (10 RPM, 50 RPD)")
 		fmt.Println("    o4-mini                 (10 RPM, 50 RPD)")
 		fmt.Println()
+		fmt.Println("  cloudflare:")
+		fmt.Println("    @cf/meta/llama-3.3-70b-instruct-fp8-fast (default)")
+		fmt.Println("    @cf/meta/llama-3.1-8b-instruct")
+		fmt.Println("    @cf/openai/gpt-oss-120b")
+		fmt.Println()
 		fmt.Println("  Usage: freeapi chat -m <model> \"message\"")
 		fmt.Println("  Or:    freeapi config set <provider>.model <model>")
 	},

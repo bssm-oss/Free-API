@@ -8,9 +8,9 @@
 
 ```bash
 # 설치
-npm i -g @anthropic-ai/gemini-cli
+npm install -g @google/gemini-cli
 # 또는
-brew install gemini
+brew install gemini-cli
 
 # freeapi 내부 호출
 gemini --yolo <prompt>
@@ -52,7 +52,7 @@ codex exec --full-auto <prompt>
 
 ```bash
 # 설치
-npm i -g @anthropic-ai/copilot-cli
+# 공식 설치 가이드 참고
 
 # freeapi 내부 호출
 copilot -p <prompt> --allow-all-tools
@@ -166,6 +166,7 @@ mistralai/mistral-small-3.1-24b-instruct:free
 | 무료 한도 | 20 RPM, 1,000 요청/월 |
 | 환경변수 | `COHERE_API_KEY` 또는 `CO_API_KEY` |
 | 키 발급 | https://dashboard.cohere.com/api-keys |
+| 스트리밍 | SSE 스트리밍 지원 |
 
 ### GitHub Models
 
@@ -177,6 +178,23 @@ mistralai/mistral-small-3.1-24b-instruct:free
 | 환경변수 | `GITHUB_TOKEN` |
 | 키 발급 | `gh auth token` (GitHub CLI) 또는 https://github.com/settings/tokens |
 | 특징 | GPT-4o, GPT-5 등 프리미엄 모델 무료 테스트 |
+
+### Cloudflare Workers AI
+
+| 항목 | 값 |
+|------|-----|
+| 엔드포인트 | `api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1` (OpenAI 호환) |
+| 기본 모델 | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` |
+| 환경변수 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` |
+| 키 발급 | https://dash.cloudflare.com/profile/api-tokens |
+| 특징 | Cloudflare 계정의 Workers AI 모델을 직접 fallback 체인에 포함 가능 |
+
+사용 가능한 모델 예시:
+```
+@cf/meta/llama-3.3-70b-instruct-fp8-fast
+@cf/meta/llama-3.1-8b-instruct
+@cf/openai/gpt-oss-120b
+```
 
 ---
 
@@ -198,3 +216,12 @@ CLI provider의 stderr/stdout에서 키워드로 감지:
 - `429`, `resource exhausted`, `throttl`
 
 감지 시 해당 CLI를 60초간 비활성화하고 다음 provider로 전환합니다.
+
+## 멀티턴 컨텍스트
+
+API provider는 role 기반 메시지 배열을 그대로 전달합니다.
+
+CLI provider는 대화 히스토리를 transcript prompt로 합성해서 전달합니다:
+- `System instructions:`
+- `Conversation:`
+- `User:` / `Assistant:` 순서

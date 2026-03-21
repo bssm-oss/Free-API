@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	appctx "github.com/bssm-oss/Free-API/internal/context"
 	"github.com/bssm-oss/Free-API/internal/config"
+	appctx "github.com/bssm-oss/Free-API/internal/context"
 	"github.com/spf13/cobra"
 )
 
@@ -85,7 +85,7 @@ var historyShowCmd = &cobra.Command{
 		defer store.Close()
 
 		// Find conversation by prefix match
-		convID, err := findConversation(store, args[0])
+		convID, err := store.ResolveConversationID(args[0])
 		if err != nil {
 			return err
 		}
@@ -139,7 +139,7 @@ var historyDeleteCmd = &cobra.Command{
 		}
 		defer store.Close()
 
-		convID, err := findConversation(store, args[0])
+		convID, err := store.ResolveConversationID(args[0])
 		if err != nil {
 			return err
 		}
@@ -188,19 +188,4 @@ func init() {
 	historyCmd.AddCommand(historyDeleteCmd)
 	historyCmd.AddCommand(historyClearCmd)
 	rootCmd.AddCommand(historyCmd)
-}
-
-// findConversation finds a conversation by ID prefix.
-func findConversation(store *appctx.Store, prefix string) (string, error) {
-	convs, err := store.ListConversations(100)
-	if err != nil {
-		return "", err
-	}
-
-	for _, c := range convs {
-		if strings.HasPrefix(c.ID, prefix) {
-			return c.ID, nil
-		}
-	}
-	return "", fmt.Errorf("conversation not found: %s", prefix)
 }

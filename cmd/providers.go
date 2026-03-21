@@ -39,8 +39,12 @@ var providersListCmd = &cobra.Command{
 
 			if !s.Available {
 				status = "❌"
-				if envVars, ok := config.EnvVarMap[s.Name]; ok {
+				if s.Name == "cloudflare" {
+					hint = "  set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID"
+				} else if envVars, ok := config.EnvVarMap[s.Name]; ok {
 					hint = fmt.Sprintf("  set %s", envVars[0])
+				} else if isCLI {
+					hint = "  install CLI binary"
 				}
 			}
 			if s.RateLimit.IsLimited {
@@ -110,7 +114,15 @@ var providersTestCmd = &cobra.Command{
 		for _, p := range registry.GetByPriority() {
 			fmt.Printf("  %-12s ", p.Name())
 			if !p.IsAvailable() {
-				fmt.Println("⏭️  skipped (no API key)")
+				if p.RateLimitStatus().IsLimited {
+					fmt.Println("⏭️  skipped (rate limited)")
+				} else if strings.HasSuffix(p.Name(), "-cli") {
+					fmt.Println("⏭️  skipped (not installed or disabled)")
+				} else if p.Name() == "cloudflare" {
+					fmt.Println("⏭️  skipped (missing API token or account ID)")
+				} else {
+					fmt.Println("⏭️  skipped (missing credentials)")
+				}
 				continue
 			}
 

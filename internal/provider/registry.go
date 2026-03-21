@@ -19,7 +19,15 @@ func NewRegistry(cfg *config.Config) *Registry {
 
 	// 1. CLI-based providers first (no API key needed, already installed)
 	cliProviders := DetectCLIs()
-	r.providers = append(r.providers, cliProviders...)
+	sort.Slice(cliProviders, func(i, j int) bool {
+		return configuredPriority(cfg, cliProviders[i].Name(), DefaultCLIPriority(cliProviders[i].Name())) <
+			configuredPriority(cfg, cliProviders[j].Name(), DefaultCLIPriority(cliProviders[j].Name()))
+	})
+	for _, p := range cliProviders {
+		if providerEnabled(cfg, p.Name(), true) {
+			r.providers = append(r.providers, p)
+		}
+	}
 
 	// 2. API-based providers sorted by priority
 	type entry struct {
@@ -28,6 +36,9 @@ func NewRegistry(cfg *config.Config) *Registry {
 	}
 	var entries []entry
 	for name, pcfg := range cfg.Providers {
+		if IsKnownCLI(name) {
+			continue
+		}
 		if pcfg.Enabled {
 			entries = append(entries, entry{name, pcfg})
 		}
@@ -44,6 +55,26 @@ func NewRegistry(cfg *config.Config) *Registry {
 	}
 
 	return r
+}
+
+func providerEnabled(cfg *config.Config, name string, defaultValue bool) bool {
+	if cfg == nil {
+		return defaultValue
+	}
+	if pcfg, ok := cfg.Providers[name]; ok {
+		return pcfg.Enabled
+	}
+	return defaultValue
+}
+
+func configuredPriority(cfg *config.Config, name string, defaultValue int) int {
+	if cfg == nil {
+		return defaultValue
+	}
+	if pcfg, ok := cfg.Providers[name]; ok && pcfg.Priority > 0 {
+		return pcfg.Priority
+	}
+	return defaultValue
 }
 
 func createProvider(name string, cfg models.ProviderConfig) Provider {
@@ -74,8 +105,7 @@ func createProvider(name string, cfg models.ProviderConfig) Provider {
 		return NewCohere(cfg.APIKey, cfg.BaseURL, cfg.Model)
 
 	case "cloudflare":
-		// Cloudflare uses a different URL pattern - skip for now if no account_id
-		return nil
+		return NewCloudflare(cfg.APIKey, cfg.AccountID, cfg.BaseURL, cfg.Model)
 
 	default:
 		return nil
