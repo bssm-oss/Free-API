@@ -28,6 +28,18 @@ func NewStore(dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	db.SetMaxOpenConns(1)
+
+	if _, err := db.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set busy_timeout: %w", err)
+	}
+	if _, err := db.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
+		if !strings.Contains(err.Error(), "SQLITE_BUSY") {
+			db.Close()
+			return nil, fmt.Errorf("set journal_mode: %w", err)
+		}
+	}
 
 	if err := migrate(db); err != nil {
 		db.Close()
