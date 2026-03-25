@@ -36,6 +36,8 @@ Quick usage:
 }
 
 func Execute() error {
+	configureLocalizedHelp(os.Args[1:])
+
 	// Check if first arg looks like a message (not a subcommand)
 	if len(os.Args) > 1 {
 		first := os.Args[1]
@@ -53,7 +55,7 @@ func Execute() error {
 }
 
 func isSubcommand(s string) bool {
-	subcommands := []string{"chat", "config", "providers", "history", "version", "help", "completion", "setup", "models", "export", "scan"}
+	subcommands := []string{"chat", "config", "providers", "history", "version", "help", "completion", "setup", "models", "export", "scan", "server"}
 	for _, sc := range subcommands {
 		if s == sc {
 			return true
