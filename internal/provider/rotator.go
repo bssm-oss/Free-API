@@ -118,11 +118,12 @@ func (r *Rotator) ChatStreamWithProvider(ctx context.Context, providerName strin
 func (r *Rotator) Status() []ProviderStatus {
 	var statuses []ProviderStatus
 	for _, p := range r.registry.GetByPriority() {
+		available := p.IsAvailable()
 		rl := p.RateLimitStatus()
 		statuses = append(statuses, ProviderStatus{
 			Name:      p.Name(),
 			Model:     p.DefaultModel(),
-			Available: p.IsAvailable(),
+			Available: available,
 			RateLimit: rl,
 		})
 	}

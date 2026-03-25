@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,11 @@ import (
 	"github.com/bssm-oss/Free-API/internal/models"
 )
 
-var cliProviderMaxRuntime = 20 * time.Second
+var cliProviderMaxRuntime = 10 * time.Second
+var cliProviderTimeoutByName = map[string]time.Duration{
+	"codex-cli": 20 * time.Second,
+}
+var cliProviderCooldown = 10 * time.Minute
 
 // CLIProvider wraps an external AI CLI tool as a provider.
 type CLIProvider struct {
@@ -38,7 +43,7 @@ func KnownCLIs() []CLIProviderConfig {
 		{
 			Name: "gemini-cli",
 			Args: func(prompt string) []string {
-				return []string{"--yolo", prompt}
+				return []string{"--yolo", "--prompt", prompt, "--output-format", "text"}
 			},
 		},
 		{
@@ -50,7 +55,7 @@ func KnownCLIs() []CLIProviderConfig {
 		{
 			Name: "codex-cli",
 			Args: func(prompt string) []string {
-				return []string{"exec", "--full-auto", prompt}
+				return []string{"exec", "--skip-git-repo-check", "--ephemeral", "--full-auto", prompt}
 			},
 		},
 		{
@@ -132,7 +137,27 @@ func (p *CLIProvider) DefaultModel() string { return filepath.Base(p.binPath) }
 func (p *CLIProvider) IsAvailable() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.rateLimit.IsLimited && time.Now().Before(p.rateLimit.ResetAt) {
+
+	now := time.Now()
+	if p.rateLimit.IsLimited && now.Before(p.rateLimit.ResetAt) {
+		return false
+	}
+
+	if cooldownUntil := loadProviderCooldown(p.name); !cooldownUntil.IsZero() {
+		if now.Before(cooldownUntil) {
+			p.rateLimit = models.RateLimitInfo{
+				IsLimited: true,
+				ResetAt:   cooldownUntil,
+			}
+			return false
+		}
+		clearProviderCooldown(p.name)
+	}
+
+	if p.rateLimit.IsLimited && !p.rateLimit.ResetAt.IsZero() && !now.Before(p.rateLimit.ResetAt) {
+		p.rateLimit = models.RateLimitInfo{}
+	}
+	if p.rateLimit.IsLimited && p.rateLimit.ResetAt.IsZero() {
 		return false
 	}
 	p.rateLimit.IsLimited = false
@@ -149,6 +174,11 @@ func (p *CLIProvider) MarkRateLimited(info models.RateLimitInfo) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.rateLimit = info
+	if info.IsLimited && !info.ResetAt.IsZero() {
+		persistProviderCooldown(p.name, info.ResetAt)
+		return
+	}
+	clearProviderCooldown(p.name)
 }
 
 func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts models.ChatOptions) (*models.Response, error) {
@@ -157,13 +187,19 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 
 	execCtx := ctx
 	cancel := func() {}
-	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > cliProviderMaxRuntime {
-		execCtx, cancel = context.WithTimeout(ctx, cliProviderMaxRuntime)
+	runtimeLimit := cliRuntimeLimit(p.name)
+	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > runtimeLimit {
+		execCtx, cancel = context.WithTimeout(ctx, runtimeLimit)
 	}
 	defer cancel()
 
 	args := p.args(prompt)
 	cmd := exec.CommandContext(execCtx, p.binPath, args...)
+	if dir := cliWorkspaceDir(p.name); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err == nil {
+			cmd.Dir = dir
+		}
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -174,7 +210,12 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 		// Check if it's a rate limit or quota error
 		errOutput := stderr.String() + stdout.String()
 		if execCtx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("%s: timed out after %s", p.name, cliProviderMaxRuntime)
+			resetAt := time.Now().Add(cliProviderCooldown)
+			p.MarkRateLimited(models.RateLimitInfo{
+				IsLimited: true,
+				ResetAt:   resetAt,
+			})
+			return nil, fmt.Errorf("%s: timed out after %s", p.name, runtimeLimit)
 		}
 		if isQuotaError(errOutput) {
 			resetAt := time.Now().Add(60 * time.Second)
@@ -195,11 +236,29 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 		return nil, fmt.Errorf("%s: empty response", p.name)
 	}
 
+	p.MarkRateLimited(models.RateLimitInfo{})
+
 	return &models.Response{
 		Content:  output,
 		Provider: p.name,
 		Model:    p.name,
 	}, nil
+}
+
+func cliRuntimeLimit(name string) time.Duration {
+	if limit, ok := cliProviderTimeoutByName[name]; ok {
+		return limit
+	}
+	return cliProviderMaxRuntime
+}
+
+func cliWorkspaceDir(name string) string {
+	switch name {
+	case "claude-cli", "codex-cli", "copilot-cli", "opencode-cli":
+		return filepath.Join(os.TempDir(), "freeapi-cli-workspaces", name)
+	default:
+		return ""
+	}
 }
 
 func (p *CLIProvider) ChatStream(ctx context.Context, messages []models.Message, opts models.ChatOptions) (<-chan models.StreamChunk, error) {

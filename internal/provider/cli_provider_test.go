@@ -38,6 +38,8 @@ func TestExtractPromptIncludesFullConversation(t *testing.T) {
 }
 
 func TestCLIProviderChatUsesPerProviderTimeout(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "slow-cli")
 	script := "#!/bin/sh\nsleep 1\nprintf 'too late\\n'\n"
@@ -59,5 +61,47 @@ func TestCLIProviderChatUsesPerProviderTimeout(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("expected timeout error, got: %v", err)
+	}
+}
+
+func TestCLIProviderTimeoutPersistsCooldownAcrossInstances(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "slow-cli")
+	script := "#!/bin/sh\nsleep 1\nprintf 'too late\\n'\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	oldTimeout := cliProviderMaxRuntime
+	oldCooldown := cliProviderCooldown
+	cliProviderMaxRuntime = 50 * time.Millisecond
+	cliProviderCooldown = 5 * time.Minute
+	defer func() {
+		cliProviderMaxRuntime = oldTimeout
+		cliProviderCooldown = oldCooldown
+	}()
+
+	first := NewCLIProvider("slow-cli", bin, func(prompt string) []string {
+		return []string{prompt}
+	})
+	if _, err := first.Chat(context.Background(), []models.Message{{Role: "user", Content: "hi"}}, models.ChatOptions{}); err == nil {
+		t.Fatal("expected timeout error")
+	}
+
+	second := NewCLIProvider("slow-cli", bin, func(prompt string) []string {
+		return []string{prompt}
+	})
+	if second.IsAvailable() {
+		t.Fatal("expected second provider instance to be cooled down")
+	}
+
+	rl := second.RateLimitStatus()
+	if !rl.IsLimited {
+		t.Fatal("expected persisted cooldown to mark provider limited")
+	}
+	if rl.ResetAt.IsZero() {
+		t.Fatal("expected cooldown reset time")
 	}
 }

@@ -124,6 +124,26 @@ func TestHelpLocalizationEndToEnd(t *testing.T) {
 	})
 }
 
+func TestUnknownCommandTypoShowsSuggestion(t *testing.T) {
+	bin := buildTestBinary(t)
+	env, _ := newCLIEnv(t, nil)
+
+	out, err := runCmdExpectError(env, bin, "model")
+	if err == nil {
+		t.Fatal("expected typo command to fail")
+	}
+
+	for _, want := range []string{
+		`unknown command "model"`,
+		`Did you mean "models"?`,
+		`freeapi chat "model"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("error output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func buildTestBinary(t *testing.T) string {
 	t.Helper()
 
@@ -172,13 +192,18 @@ func newCLIEnv(t *testing.T, scripts map[string]string) ([]string, string) {
 func runCmd(t *testing.T, env []string, bin string, args ...string) string {
 	t.Helper()
 
-	cmd := exec.Command(bin, args...)
-	cmd.Env = env
-	out, err := cmd.CombinedOutput()
+	out, err := runCmdExpectError(env, bin, args...)
 	if err != nil {
 		t.Fatalf("%s %s failed: %v\n%s", bin, strings.Join(args, " "), err, out)
 	}
-	return string(out)
+	return out
+}
+
+func runCmdExpectError(env []string, bin string, args ...string) (string, error) {
+	cmd := exec.Command(bin, args...)
+	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
 
 func readFile(t *testing.T, path string) string {
@@ -199,7 +224,21 @@ func fakeCLIRecorderScript(name, binary string) string {
 		"if [ -f \"$COUNT_FILE\" ]; then COUNT=$(/bin/cat \"$COUNT_FILE\"); fi\n" +
 		"COUNT=$((COUNT + 1))\n" +
 		"printf '%s' \"$COUNT\" > \"$COUNT_FILE\"\n" +
+		"PROMPT=\"\"\n" +
+		"EXPECT_PROMPT=0\n" +
+		"HAVE_PROMPT=0\n" +
+		"for ARG in \"$@\"; do\n" +
+		"  if [ \"$EXPECT_PROMPT\" = \"1\" ]; then PROMPT=\"$ARG\"; EXPECT_PROMPT=0; HAVE_PROMPT=1; continue; fi\n" +
+		"  case \"$ARG\" in\n" +
+		"    --prompt|-p)\n" +
+		"      EXPECT_PROMPT=1\n" +
+		"      ;;\n" +
+		"    *)\n" +
+		"      if [ \"$HAVE_PROMPT\" = \"0\" ]; then PROMPT=\"$ARG\"; fi\n" +
+		"      ;;\n" +
+		"  esac\n" +
+		"done\n" +
 		"PROMPT_FILE=\"$STATE_DIR/" + name + "_prompt_${COUNT}.txt\"\n" +
-		"printf '%s' \"$2\" > \"$PROMPT_FILE\"\n" +
+		"printf '%s' \"$PROMPT\" > \"$PROMPT_FILE\"\n" +
 		"printf '" + binary + "-response-%s\\n' \"$COUNT\"\n"
 }
