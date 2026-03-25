@@ -13,6 +13,8 @@ import (
 	"github.com/bssm-oss/Free-API/internal/models"
 )
 
+var cliProviderMaxRuntime = 20 * time.Second
+
 // CLIProvider wraps an external AI CLI tool as a provider.
 type CLIProvider struct {
 	name    string
@@ -153,8 +155,15 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 	// Build prompt from messages - use last user message
 	prompt := extractPrompt(messages)
 
+	execCtx := ctx
+	cancel := func() {}
+	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > cliProviderMaxRuntime {
+		execCtx, cancel = context.WithTimeout(ctx, cliProviderMaxRuntime)
+	}
+	defer cancel()
+
 	args := p.args(prompt)
-	cmd := exec.CommandContext(ctx, p.binPath, args...)
+	cmd := exec.CommandContext(execCtx, p.binPath, args...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -164,6 +173,9 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 	if err != nil {
 		// Check if it's a rate limit or quota error
 		errOutput := stderr.String() + stdout.String()
+		if execCtx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("%s: timed out after %s", p.name, cliProviderMaxRuntime)
+		}
 		if isQuotaError(errOutput) {
 			resetAt := time.Now().Add(60 * time.Second)
 			p.MarkRateLimited(models.RateLimitInfo{

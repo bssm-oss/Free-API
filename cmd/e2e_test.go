@@ -86,6 +86,44 @@ func TestCLIConversationFlowEndToEnd(t *testing.T) {
 	})
 }
 
+func TestHelpLocalizationEndToEnd(t *testing.T) {
+	bin := buildTestBinary(t)
+
+	t.Run("root help supports Korean", func(t *testing.T) {
+		env, _ := newCLIEnv(t, nil)
+		out := runCmd(t, env, bin, "help", "--lang", "ko")
+
+		for _, want := range []string{
+			"freeapi - 여러 무료 LLM과 설치된 AI CLI를 하나로 묶는 도구입니다.",
+			"사용법:",
+			"사용 가능한 명령어:",
+			"도움말 언어 (en, ko)",
+			"특정 명령어의 자세한 도움말은",
+		} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("help output missing %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("FREEAPI_LANG localizes subcommand help", func(t *testing.T) {
+		env, _ := newCLIEnv(t, nil)
+		env = append(env, "FREEAPI_LANG=ko")
+		out := runCmd(t, env, bin, "chat", "--help")
+
+		for _, want := range []string{
+			"메시지를 보내고 응답을 받습니다.",
+			"마지막 대화를 이어서 사용",
+			"메타데이터 없이 응답만 출력",
+			"요청 타임아웃(초)",
+		} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("localized chat help missing %q:\n%s", want, out)
+			}
+		}
+	})
+}
+
 func buildTestBinary(t *testing.T) string {
 	t.Helper()
 
@@ -158,7 +196,7 @@ func fakeCLIRecorderScript(name, binary string) string {
 		"STATE_DIR=\"__STATE_DIR__\"\n" +
 		"COUNT_FILE=\"$STATE_DIR/" + name + "_count\"\n" +
 		"COUNT=0\n" +
-		"if [ -f \"$COUNT_FILE\" ]; then COUNT=$(cat \"$COUNT_FILE\"); fi\n" +
+		"if [ -f \"$COUNT_FILE\" ]; then COUNT=$(/bin/cat \"$COUNT_FILE\"); fi\n" +
 		"COUNT=$((COUNT + 1))\n" +
 		"printf '%s' \"$COUNT\" > \"$COUNT_FILE\"\n" +
 		"PROMPT_FILE=\"$STATE_DIR/" + name + "_prompt_${COUNT}.txt\"\n" +
