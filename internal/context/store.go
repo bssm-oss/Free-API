@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bssm-oss/Free-API/internal/logging"
 	"github.com/bssm-oss/Free-API/internal/models"
 	_ "modernc.org/sqlite"
 )
@@ -21,31 +22,56 @@ type Store struct {
 func NewStore(dbPath string) (*Store, error) {
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
+		logging.Error("context.store_dir_error", map[string]any{
+			"db_path": dbPath,
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
+		logging.Error("context.store_open_error", map[string]any{
+			"db_path": dbPath,
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 
 	if _, err := db.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
 		db.Close()
+		logging.Error("context.store_pragma_error", map[string]any{
+			"db_path": dbPath,
+			"pragma":  "busy_timeout",
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("set busy_timeout: %w", err)
 	}
 	if _, err := db.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
 		if !strings.Contains(err.Error(), "SQLITE_BUSY") {
 			db.Close()
+			logging.Error("context.store_pragma_error", map[string]any{
+				"db_path": dbPath,
+				"pragma":  "journal_mode",
+				"error":   err.Error(),
+			})
 			return nil, fmt.Errorf("set journal_mode: %w", err)
 		}
 	}
 
 	if err := migrate(db); err != nil {
 		db.Close()
+		logging.Error("context.store_migrate_error", map[string]any{
+			"db_path": dbPath,
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("migrate db: %w", err)
 	}
 
+	logging.Debug("context.store_ready", map[string]any{
+		"db_path": dbPath,
+	})
 	return &Store{db: db}, nil
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/bssm-oss/Free-API/internal/config"
 	appctx "github.com/bssm-oss/Free-API/internal/context"
+	"github.com/bssm-oss/Free-API/internal/logging"
 	"github.com/bssm-oss/Free-API/internal/models"
 	"github.com/bssm-oss/Free-API/internal/provider"
 	"github.com/spf13/cobra"
@@ -49,7 +50,7 @@ func init() {
 	chatCmd.Flags().StringVarP(&chatSystemMsg, "system", "s", "", "Set system message")
 	chatCmd.Flags().BoolVar(&chatNoStream, "no-stream", false, "Disable streaming output")
 	chatCmd.Flags().BoolVar(&chatRaw, "raw", false, "Raw output only (no metadata to stderr)")
-	chatCmd.Flags().IntVar(&chatTimeout, "timeout", 120, "Request timeout in seconds")
+	chatCmd.Flags().IntVar(&chatTimeout, "timeout", defaultChatTimeoutSeconds, "Request timeout in seconds")
 	rootCmd.AddCommand(chatCmd)
 }
 
@@ -86,6 +87,16 @@ func runChat(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	logging.Configure(cfg.LogPath, cfg.LogLevel)
+	logging.Info("chat.request_start", map[string]any{
+		"continue":          chatContinue,
+		"conversation_id":   chatCID,
+		"provider_override": chatProvider,
+		"model_override":    chatModel,
+		"stream":            !chatNoStream,
+		"timeout_s":         chatTimeout,
+		"message_len":       len(input),
+	})
 
 	// Init SQLite store
 	dbPath := cfg.DBPath
@@ -114,6 +125,10 @@ func runChat(cmd *cobra.Command, args []string) error {
 	if isContinue && !chatRaw {
 		fmt.Fprintf(os.Stderr, "📎 Continuing conversation %s\n", shortID(convID))
 	}
+	logging.Debug("chat.conversation_ready", map[string]any{
+		"conversation_id": convID,
+		"is_continue":     isContinue,
+	})
 
 	// Build messages with history
 	messages, err := mgr.BuildMessages(convID, input)
@@ -135,51 +150,50 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 	// Streaming or non-streaming
 	if chatNoStream {
-		return runNonStream(ctx, rotator, messages, opts, mgr, convID, input)
+		err = runNonStream(ctx, rotator, messages, opts, mgr, convID, input)
+		if err != nil {
+			logging.Error("chat.request_error", map[string]any{
+				"conversation_id": convID,
+				"stream":          false,
+				"error":           err.Error(),
+			})
+		}
+		return err
 	}
-	return runStream(ctx, rotator, messages, opts, mgr, convID, input)
+	err = runStream(ctx, rotator, messages, opts, mgr, convID, input)
+	if err != nil {
+		logging.Error("chat.request_error", map[string]any{
+			"conversation_id": convID,
+			"stream":          true,
+			"error":           err.Error(),
+		})
+	}
+	return err
 }
 
 func runStream(ctx context.Context, rotator *provider.Rotator, messages []models.Message, opts models.ChatOptions, mgr *appctx.Manager, convID, input string) error {
-	opts.Stream = true
 	start := time.Now()
-
-	var ch <-chan models.StreamChunk
-	var providerName string
-	var err error
-
-	if chatProvider != "" {
-		ch, err = rotator.ChatStreamWithProvider(ctx, chatProvider, messages, opts)
-		providerName = chatProvider
-	} else {
-		ch, providerName, err = rotator.ChatStream(ctx, messages, opts)
-	}
+	fullContent, providerName, err := executeStreamRequest(ctx, rotator, messages, opts, streamRequestConfig{
+		providerOverride: chatProvider,
+		raw:              chatRaw,
+		spinnerMessage:   spinnerLabel(chatProvider),
+	})
 	if err != nil {
-		return err
+		if fullContent == "" {
+			return err
+		}
+		if fullContent != "" {
+			fmt.Fprintf(os.Stderr, "\n⚠️  Stream interrupted: %v\n", err)
+		}
 	}
 
-	var fullContent strings.Builder
-	for chunk := range ch {
-		if chunk.Error != nil {
-			if fullContent.Len() > 0 {
-				fmt.Fprintf(os.Stderr, "\n⚠️  Stream interrupted: %v\n", chunk.Error)
-				break
-			}
-			return chunk.Error
-		}
-		if chunk.Done {
-			break
-		}
-		fmt.Print(chunk.Content)
-		fullContent.WriteString(chunk.Content)
-	}
 	fmt.Println()
 
 	elapsed := time.Since(start)
 
 	// Save to history
-	if fullContent.Len() > 0 {
-		if err := mgr.SaveExchange(convID, input, fullContent.String(), providerName, "", 0, 0); err != nil && !chatRaw {
+	if fullContent != "" {
+		if err := mgr.SaveExchange(convID, input, fullContent, providerName, "", 0, 0); err != nil && !chatRaw {
 			fmt.Fprintf(os.Stderr, "⚠️  Failed to save conversation: %v\n", err)
 		}
 	}
@@ -187,12 +201,21 @@ func runStream(ctx context.Context, rotator *provider.Rotator, messages []models
 	if !chatRaw {
 		fmt.Fprintf(os.Stderr, "💬 [%s] %.1fs conv=%s\n", providerName, elapsed.Seconds(), shortID(convID))
 	}
+	logging.Info("chat.request_finish", map[string]any{
+		"conversation_id": convID,
+		"provider":        providerName,
+		"stream":          true,
+		"elapsed_ms":      elapsed.Milliseconds(),
+		"response_len":    len(fullContent),
+	})
 	return nil
 }
 
 func runNonStream(ctx context.Context, rotator *provider.Rotator, messages []models.Message, opts models.ChatOptions, mgr *appctx.Manager, convID, input string) error {
 	opts.Stream = false
 	start := time.Now()
+	spinner := startRequestSpinner(shouldShowSpinner(chatRaw), spinnerLabel(chatProvider))
+	defer spinner.Stop()
 
 	var resp *models.Response
 	var err error
@@ -205,6 +228,7 @@ func runNonStream(ctx context.Context, rotator *provider.Rotator, messages []mod
 	if err != nil {
 		return err
 	}
+	spinner.Stop()
 
 	elapsed := time.Since(start)
 
@@ -222,5 +246,22 @@ func runNonStream(ctx context.Context, rotator *provider.Rotator, messages []mod
 		fmt.Fprintf(os.Stderr, "💬 [%s/%s] %.1fs tokens=%d/%d conv=%s\n",
 			resp.Provider, resp.Model, elapsed.Seconds(), resp.TokensIn, resp.TokensOut, shortID(convID))
 	}
+	logging.Info("chat.request_finish", map[string]any{
+		"conversation_id": convID,
+		"provider":        resp.Provider,
+		"model":           resp.Model,
+		"stream":          false,
+		"elapsed_ms":      elapsed.Milliseconds(),
+		"tokens_in":       resp.TokensIn,
+		"tokens_out":      resp.TokensOut,
+		"response_len":    len(resp.Content),
+	})
 	return nil
+}
+
+func spinnerLabel(providerName string) string {
+	if providerName != "" {
+		return fmt.Sprintf("Waiting on %s...", providerName)
+	}
+	return "Waiting on provider..."
 }

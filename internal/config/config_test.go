@@ -121,3 +121,22 @@ func TestLoadPreservesDefaultProvidersWhenConfigFileIsPartial(t *testing.T) {
 		t.Fatalf("expected custom groq model, got %q", got)
 	}
 }
+
+func TestLoadAppliesLoggingDefaultsAndEnvOverrides(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("FREEAPI_LOG_PATH", filepath.Join(home, "custom.log"))
+	t.Setenv("FREEAPI_LOG_LEVEL", "debug")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	if got := cfg.LogPath; got != filepath.Join(home, "custom.log") {
+		t.Fatalf("expected env log path, got %q", got)
+	}
+	if got := cfg.LogLevel; got != "debug" {
+		t.Fatalf("expected env log level, got %q", got)
+	}
+}

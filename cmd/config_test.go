@@ -38,6 +38,12 @@ func TestApplyConfigValueSupportsProductSettings(t *testing.T) {
 	if err := applyConfigValue(cfg, "db_path", "/tmp/freeapi.db"); err != nil {
 		t.Fatalf("set db_path: %v", err)
 	}
+	if err := applyConfigValue(cfg, "log_path", "/tmp/freeapi.log"); err != nil {
+		t.Fatalf("set log_path: %v", err)
+	}
+	if err := applyConfigValue(cfg, "log_level", "debug"); err != nil {
+		t.Fatalf("set log_level: %v", err)
+	}
 	if err := applyConfigValue(cfg, "cloudflare.account_id", "acct-123"); err != nil {
 		t.Fatalf("set cloudflare account_id: %v", err)
 	}
@@ -47,6 +53,12 @@ func TestApplyConfigValueSupportsProductSettings(t *testing.T) {
 	}
 	if cfg.DBPath != "/tmp/freeapi.db" {
 		t.Fatalf("unexpected db_path: %q", cfg.DBPath)
+	}
+	if cfg.LogPath != "/tmp/freeapi.log" {
+		t.Fatalf("unexpected log_path: %q", cfg.LogPath)
+	}
+	if cfg.LogLevel != "debug" {
+		t.Fatalf("unexpected log_level: %q", cfg.LogLevel)
 	}
 	if cfg.Providers["cloudflare"].AccountID != "acct-123" {
 		t.Fatalf("unexpected cloudflare account ID: %q", cfg.Providers["cloudflare"].AccountID)

@@ -105,3 +105,21 @@ func TestCLIProviderTimeoutPersistsCooldownAcrossInstances(t *testing.T) {
 		t.Fatal("expected cooldown reset time")
 	}
 }
+
+func TestDefaultCLIPriorityPrefersCodexThenGeminiThenClaude(t *testing.T) {
+	if got := DefaultCLIPriority("codex-cli"); got != 10 {
+		t.Fatalf("expected codex-cli priority 10, got %d", got)
+	}
+	if got := DefaultCLIPriority("gemini-cli"); got != 20 {
+		t.Fatalf("expected gemini-cli priority 20, got %d", got)
+	}
+	if got := DefaultCLIPriority("claude-cli"); got != 30 {
+		t.Fatalf("expected claude-cli priority 30, got %d", got)
+	}
+}
+
+func TestCLIRuntimeLimitExtendsGemini(t *testing.T) {
+	if got := cliRuntimeLimit("gemini-cli"); got != 30*time.Second {
+		t.Fatalf("expected gemini-cli runtime limit 30s, got %s", got)
+	}
+}
