@@ -58,6 +58,8 @@ default_system_prompt: You are a helpful assistant.
 max_context_messages: 50
 context_strategy: sliding_window
 db_path: ""                            # 비우면 ~/.local/share/freeapi/conversations.db
+log_path: ""                           # 비우면 ~/.local/share/freeapi/logs/freeapi.log
+log_level: info                        # error | info | debug
 ```
 
 ## 환경변수
@@ -90,6 +92,8 @@ export GEMINI_API_KEY="AIzaxxxxxxxxxxxxxxx"
 export GITHUB_TOKEN="$(gh auth token)"    # GitHub CLI 있으면
 export CLOUDFLARE_API_TOKEN="..."
 export CLOUDFLARE_ACCOUNT_ID="..."
+export FREEAPI_LOG_LEVEL="debug"
+export FREEAPI_LOG_PATH="/tmp/freeapi.log"
 ```
 
 ## config 명령어
@@ -124,6 +128,10 @@ freeapi config set max_context_messages 100
 # DB 위치 변경
 freeapi config set db_path "/tmp/freeapi.db"
 
+# 실행 로그 설정
+freeapi config set log_level "debug"
+freeapi config set log_path "/tmp/freeapi.log"
+
 # CLI provider 비활성화/우선순위 조정
 freeapi config set codex-cli.enabled false
 freeapi config set claude-cli.priority 5
@@ -135,6 +143,7 @@ freeapi config set claude-cli.priority 5
 |------|------|------|
 | 설정 | `~/.config/freeapi/config.yaml` | YAML 설정 |
 | 대화 DB | `~/.local/share/freeapi/conversations.db` | SQLite |
+| 실행 로그 | `~/.local/share/freeapi/logs/freeapi.log` | JSONL 실행 로그 |
 
 ## 우선순위 규칙
 

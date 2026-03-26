@@ -14,6 +14,8 @@ type Config struct {
 	MaxContextMessages  int                              `yaml:"max_context_messages"`
 	ContextStrategy     string                           `yaml:"context_strategy"`
 	DBPath              string                           `yaml:"db_path"`
+	LogPath             string                           `yaml:"log_path"`
+	LogLevel            string                           `yaml:"log_level"`
 }
 
 func DefaultConfig() *Config {
@@ -71,6 +73,8 @@ func DefaultConfig() *Config {
 		MaxContextMessages:  50,
 		ContextStrategy:     "sliding_window",
 		DBPath:              "",
+		LogPath:             "",
+		LogLevel:            "info",
 	}
 }
 
@@ -86,6 +90,11 @@ func ConfigPath() string {
 func DefaultDBPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "share", "freeapi", "conversations.db")
+}
+
+func DefaultLogPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".local", "share", "freeapi", "logs", "freeapi.log")
 }
 
 // EnvVarMap maps provider names to their environment variable names.
@@ -130,6 +139,12 @@ func load(applyEnv bool) (*Config, error) {
 
 	if cfg.DBPath == "" {
 		cfg.DBPath = DefaultDBPath()
+	}
+	if cfg.LogPath == "" {
+		cfg.LogPath = DefaultLogPath()
+	}
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
 	}
 
 	return cfg, nil
@@ -207,6 +222,13 @@ func applyEnvOverrides(cfg *Config) {
 				}
 			}
 		}
+	}
+
+	if v := os.Getenv("FREEAPI_LOG_PATH"); v != "" {
+		cfg.LogPath = filepath.Clean(v)
+	}
+	if v := os.Getenv("FREEAPI_LOG_LEVEL"); v != "" {
+		cfg.LogLevel = v
 	}
 }
 

@@ -143,6 +143,46 @@ Bye!
 | `/help` | 도움말 |
 | `/quit` | 종료 |
 
+## 로컬 HTTP 서버
+
+```bash
+freeapi server
+```
+
+기본 주소:
+
+- `http://127.0.0.1:8080/swagger` - Swagger UI
+- `http://127.0.0.1:8080/openapi.json` - OpenAPI 스펙
+- `http://127.0.0.1:8080/healthz` - 헬스 체크
+- `http://127.0.0.1:8080/freeapi/chat` - 채팅 API
+
+### 채팅 요청
+
+```bash
+curl -X POST http://127.0.0.1:8080/freeapi/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hello"}'
+```
+
+### 이어가기
+
+```bash
+curl -X POST http://127.0.0.1:8080/freeapi/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"follow up","conversation_id":"<conversation_id>"}'
+```
+
+### 요청 필드
+
+- `message` - 필수 사용자 입력
+- `conversation_id` - 특정 대화 이어가기
+- `cid` - 짧은 대화 ID prefix
+- `continue` - 마지막 대화 이어가기
+- `provider` - 특정 provider 강제
+- `model` - 특정 model 강제
+- `system` - 시스템 프롬프트 override
+- `timeout` - 요청 timeout(초)
+
 ## 대화 관리
 
 ```bash
@@ -233,6 +273,7 @@ freeapi config list
 
 - 설정: `~/.config/freeapi/config.yaml`
 - 대화 DB: `~/.local/share/freeapi/conversations.db`
+- 실행 로그: `~/.local/share/freeapi/logs/freeapi.log`
 
 ## 스크립트 활용 예시
 
