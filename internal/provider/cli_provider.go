@@ -11,12 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bssm-oss/Free-API/internal/logging"
 	"github.com/bssm-oss/Free-API/internal/models"
 )
 
 var cliProviderMaxRuntime = 10 * time.Second
 var cliProviderTimeoutByName = map[string]time.Duration{
-	"codex-cli": 20 * time.Second,
+	"codex-cli":  20 * time.Second,
+	"gemini-cli": 30 * time.Second,
 }
 var cliProviderCooldown = 10 * time.Minute
 
@@ -83,9 +85,9 @@ var BinNames = map[string]string{
 }
 
 var defaultCLIPriorities = map[string]int{
-	"gemini-cli":   10,
-	"claude-cli":   20,
-	"codex-cli":    30,
+	"codex-cli":    10,
+	"gemini-cli":   20,
+	"claude-cli":   30,
 	"copilot-cli":  40,
 	"opencode-cli": 50,
 }
@@ -182,7 +184,6 @@ func (p *CLIProvider) MarkRateLimited(info models.RateLimitInfo) {
 }
 
 func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts models.ChatOptions) (*models.Response, error) {
-	// Build prompt from messages - use last user message
 	prompt := extractPrompt(messages)
 
 	execCtx := ctx
@@ -195,6 +196,7 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 
 	args := p.args(prompt)
 	cmd := exec.CommandContext(execCtx, p.binPath, args...)
+	workDir := cliWorkspaceDir(p.name)
 	if dir := cliWorkspaceDir(p.name); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err == nil {
 			cmd.Dir = dir
@@ -205,15 +207,33 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	start := time.Now()
+	logging.Debug("provider.cli_exec_start", map[string]any{
+		"provider":      p.name,
+		"bin_path":      p.binPath,
+		"arg_count":     len(args),
+		"message_count": len(messages),
+		"prompt_len":    len(prompt),
+		"runtime_ms":    runtimeLimit.Milliseconds(),
+		"work_dir":      workDir,
+		"stream":        opts.Stream,
+		"model":         opts.Model,
+	})
+
 	err := cmd.Run()
 	if err != nil {
-		// Check if it's a rate limit or quota error
 		errOutput := stderr.String() + stdout.String()
 		if execCtx.Err() == context.DeadlineExceeded {
 			resetAt := time.Now().Add(cliProviderCooldown)
 			p.MarkRateLimited(models.RateLimitInfo{
 				IsLimited: true,
 				ResetAt:   resetAt,
+			})
+			logging.Error("provider.cli_timeout", map[string]any{
+				"provider":       p.name,
+				"elapsed_ms":     time.Since(start).Milliseconds(),
+				"runtime_ms":     runtimeLimit.Milliseconds(),
+				"cooldown_until": resetAt.Format(time.RFC3339Nano),
 			})
 			return nil, fmt.Errorf("%s: timed out after %s", p.name, runtimeLimit)
 		}
@@ -223,8 +243,20 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 				IsLimited: true,
 				ResetAt:   resetAt,
 			})
+			logging.Info("provider.cli_rate_limited", map[string]any{
+				"provider":       p.name,
+				"elapsed_ms":     time.Since(start).Milliseconds(),
+				"cooldown_until": resetAt.Format(time.RFC3339Nano),
+				"output_len":     len(strings.TrimSpace(errOutput)),
+			})
 			return nil, &RateLimitError{Provider: p.name, RetryAfter: resetAt}
 		}
+		logging.Error("provider.cli_exec_error", map[string]any{
+			"provider":   p.name,
+			"elapsed_ms": time.Since(start).Milliseconds(),
+			"output_len": len(strings.TrimSpace(errOutput)),
+			"error":      err.Error(),
+		})
 		return nil, fmt.Errorf("%s: %v\n%s", p.name, err, strings.TrimSpace(errOutput))
 	}
 
@@ -233,10 +265,19 @@ func (p *CLIProvider) Chat(ctx context.Context, messages []models.Message, opts 
 		output = strings.TrimSpace(stderr.String())
 	}
 	if output == "" {
+		logging.Error("provider.cli_empty_response", map[string]any{
+			"provider":   p.name,
+			"elapsed_ms": time.Since(start).Milliseconds(),
+		})
 		return nil, fmt.Errorf("%s: empty response", p.name)
 	}
 
 	p.MarkRateLimited(models.RateLimitInfo{})
+	logging.Info("provider.cli_exec_success", map[string]any{
+		"provider":     p.name,
+		"elapsed_ms":   time.Since(start).Milliseconds(),
+		"response_len": len(output),
+	})
 
 	return &models.Response{
 		Content:  output,

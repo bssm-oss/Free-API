@@ -10,6 +10,7 @@ import (
 
 	"github.com/bssm-oss/Free-API/internal/config"
 	appctx "github.com/bssm-oss/Free-API/internal/context"
+	"github.com/bssm-oss/Free-API/internal/logging"
 	"github.com/bssm-oss/Free-API/internal/models"
 	"github.com/bssm-oss/Free-API/internal/provider"
 )
@@ -19,6 +20,8 @@ func runInteractive() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	logging.Configure(cfg.LogPath, cfg.LogLevel)
+	logging.Info("repl.start", map[string]any{})
 
 	dbPath := cfg.DBPath
 	if dbPath == "" {
@@ -87,6 +90,9 @@ func runInteractive() error {
 			fmt.Println()
 			continue
 		case input == "/quit" || input == "/exit":
+			logging.Info("repl.exit", map[string]any{
+				"conversation_id": convID,
+			})
 			fmt.Println("Bye!")
 			return nil
 		case input == "/id":
@@ -136,6 +142,9 @@ func runInteractive() error {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				continue
 			}
+			logging.Debug("repl.conversation_created", map[string]any{
+				"conversation_id": convID,
+			})
 		}
 
 		// Build messages
@@ -147,13 +156,27 @@ func runInteractive() error {
 
 		// Stream response (5 min timeout)
 		opts := models.ChatOptions{Stream: true}
+		logging.Debug("repl.message_start", map[string]any{
+			"conversation_id": convID,
+			"message_len":     len(input),
+		})
 		fullContent, providerName := doStream(rotator, messages, opts)
 
 		// Save
 		if fullContent != "" {
 			if err := mgr.SaveExchange(convID, input, fullContent, providerName, "", 0, 0); err != nil {
 				fmt.Fprintf(os.Stderr, "⚠️  Save failed: %v\n", err)
+				logging.Error("repl.save_error", map[string]any{
+					"conversation_id": convID,
+					"provider":        providerName,
+					"error":           err.Error(),
+				})
 			}
+			logging.Info("repl.message_finish", map[string]any{
+				"conversation_id": convID,
+				"provider":        providerName,
+				"response_len":    len(fullContent),
+			})
 		}
 
 		if providerName != "" {
@@ -161,7 +184,17 @@ func runInteractive() error {
 		}
 	}
 
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		logging.Error("repl.error", map[string]any{
+			"error": err.Error(),
+		})
+		return err
+	}
+	logging.Info("repl.exit", map[string]any{
+		"conversation_id": convID,
+		"reason":          "stdin_closed",
+	})
+	return nil
 }
 
 func printREPLHelp() {
@@ -180,29 +213,28 @@ Just type your message to chat!
 }
 
 func doStream(rotator *provider.Rotator, messages []models.Message, opts models.ChatOptions) (string, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(defaultChatTimeoutSeconds)*time.Second)
 	defer cancel()
 
-	ch, providerName, err := rotator.ChatStream(ctx, messages, opts)
+	fullContent, providerName, err := executeStreamRequest(ctx, rotator, messages, opts, streamRequestConfig{
+		spinnerMessage: spinnerLabel(""),
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		return "", ""
+		if fullContent == "" {
+			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+			logging.Error("repl.stream_error", map[string]any{
+				"error": err.Error(),
+			})
+			return "", ""
+		}
+		fmt.Fprintf(os.Stderr, "\nStream error: %v\n", err)
+		logging.Error("repl.stream_error", map[string]any{
+			"provider": providerName,
+			"error":    err.Error(),
+		})
 	}
 
-	fmt.Print("\n")
-	var fullContent strings.Builder
-	for chunk := range ch {
-		if chunk.Error != nil {
-			fmt.Fprintf(os.Stderr, "\nStream error: %v\n", chunk.Error)
-			break
-		}
-		if chunk.Done {
-			break
-		}
-		fmt.Print(chunk.Content)
-		fullContent.WriteString(chunk.Content)
-	}
 	fmt.Printf("\n\n")
 
-	return fullContent.String(), providerName
+	return fullContent, providerName
 }
