@@ -84,6 +84,67 @@ func TestCLIConversationFlowEndToEnd(t *testing.T) {
 			t.Fatalf("expected claude to be invoked again after priority override: %v", err)
 		}
 	})
+
+	t.Run("default cli priority prefers codex before gemini and claude", func(t *testing.T) {
+		env, stateDir := newCLIEnv(t, map[string]string{
+			"codex":  fakeCLIRecorderScript("codex", "codex"),
+			"gemini": fakeCLIRecorderScript("gemini", "gemini"),
+			"claude": fakeCLIRecorderScript("claude", "claude"),
+		})
+
+		runCmd(t, env, bin, "chat", "--no-stream", "--raw", "priority default check")
+
+		if _, err := os.Stat(filepath.Join(stateDir, "codex_prompt_1.txt")); err != nil {
+			t.Fatalf("expected codex to handle the request first: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(stateDir, "gemini_prompt_1.txt")); !os.IsNotExist(err) {
+			t.Fatalf("gemini should not run before codex by default")
+		}
+		if _, err := os.Stat(filepath.Join(stateDir, "claude_prompt_1.txt")); !os.IsNotExist(err) {
+			t.Fatalf("claude should not run before codex by default")
+		}
+	})
+}
+
+func TestInteractiveAndDirectShareCLIPromptShape(t *testing.T) {
+	bin := buildTestBinary(t)
+
+	t.Run("first turn prompt matches", func(t *testing.T) {
+		directEnv, directStateDir := newCLIEnv(t, map[string]string{
+			"gemini": fakeCLIRecorderScript("gemini", "gemini"),
+		})
+		runCmd(t, directEnv, bin, "hello")
+		directPrompt := readFile(t, filepath.Join(directStateDir, "gemini_prompt_1.txt"))
+
+		replEnv, replStateDir := newCLIEnv(t, map[string]string{
+			"gemini": fakeCLIRecorderScript("gemini", "gemini"),
+		})
+		runCmdWithInput(t, replEnv, bin, "hello\n/quit\n")
+		replPrompt := readFile(t, filepath.Join(replStateDir, "gemini_prompt_1.txt"))
+
+		if directPrompt != replPrompt {
+			t.Fatalf("expected direct and repl prompts to match\n--- direct ---\n%s\n--- repl ---\n%s", directPrompt, replPrompt)
+		}
+	})
+
+	t.Run("follow up prompt matches", func(t *testing.T) {
+		directEnv, directStateDir := newCLIEnv(t, map[string]string{
+			"gemini": fakeCLIRecorderScript("gemini", "gemini"),
+		})
+		runCmd(t, directEnv, bin, "hello")
+		runCmd(t, directEnv, bin, "chat", "-c", "follow up")
+		directPrompt := readFile(t, filepath.Join(directStateDir, "gemini_prompt_2.txt"))
+
+		replEnv, replStateDir := newCLIEnv(t, map[string]string{
+			"gemini": fakeCLIRecorderScript("gemini", "gemini"),
+		})
+		runCmdWithInput(t, replEnv, bin, "hello\nfollow up\n/quit\n")
+		replPrompt := readFile(t, filepath.Join(replStateDir, "gemini_prompt_2.txt"))
+
+		if directPrompt != replPrompt {
+			t.Fatalf("expected direct and repl follow-up prompts to match\n--- direct ---\n%s\n--- repl ---\n%s", directPrompt, replPrompt)
+		}
+	})
 }
 
 func TestHelpLocalizationEndToEnd(t *testing.T) {
@@ -178,12 +239,15 @@ func newCLIEnv(t *testing.T, scripts map[string]string) ([]string, string) {
 		}
 	}
 
-	pathEnv := binDir
-	if existing := os.Getenv("PATH"); existing != "" {
-		pathEnv += string(os.PathListSeparator) + existing
-	}
+	pathEnv := strings.Join([]string{binDir, "/usr/bin", "/bin"}, string(os.PathListSeparator))
 
-	env := os.Environ()
+	var env []string
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "HOME=") || strings.HasPrefix(kv, "PATH=") {
+			continue
+		}
+		env = append(env, kv)
+	}
 	env = append(env, "HOME="+homeDir, "PATH="+pathEnv)
 
 	return env, stateDir
@@ -199,9 +263,27 @@ func runCmd(t *testing.T, env []string, bin string, args ...string) string {
 	return out
 }
 
+func runCmdWithInput(t *testing.T, env []string, bin, input string, args ...string) string {
+	t.Helper()
+
+	out, err := runCmdWithInputExpectError(env, bin, input, args...)
+	if err != nil {
+		t.Fatalf("%s %s failed: %v\n%s", bin, strings.Join(args, " "), err, out)
+	}
+	return out
+}
+
 func runCmdExpectError(env []string, bin string, args ...string) (string, error) {
 	cmd := exec.Command(bin, args...)
 	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+func runCmdWithInputExpectError(env []string, bin, input string, args ...string) (string, error) {
+	cmd := exec.Command(bin, args...)
+	cmd.Env = env
+	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
