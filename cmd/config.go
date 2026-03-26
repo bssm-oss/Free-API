@@ -187,6 +187,19 @@ func applyConfigValue(cfg *config.Config, key, value string) error {
 			return nil
 		}
 		cfg.DBPath = filepath.Clean(value)
+	case "log_path":
+		if value == "" {
+			cfg.LogPath = ""
+			return nil
+		}
+		cfg.LogPath = filepath.Clean(value)
+	case "log_level":
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "error", "info", "debug":
+			cfg.LogLevel = strings.ToLower(strings.TrimSpace(value))
+		default:
+			return fmt.Errorf("%s: must be one of error, info, debug", key)
+		}
 	default:
 		return fmt.Errorf("unknown key: %s", key)
 	}
