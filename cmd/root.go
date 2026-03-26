@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/bssm-oss/Free-API/internal/config"
+	"github.com/bssm-oss/Free-API/internal/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -37,26 +39,57 @@ Quick usage:
 
 func Execute() error {
 	configureLocalizedHelp(os.Args[1:])
+	initLogging()
 
 	// Check if first arg looks like a message (not a subcommand)
+	mode := "repl"
 	if len(os.Args) > 1 {
 		first := os.Args[1]
+		mode = "subcommand"
 		if !strings.HasPrefix(first, "-") && !isSubcommand(first) {
 			if suggestion, ok := likelySubcommandTypo(first); ok {
 				err := fmt.Errorf("unknown command %q. Did you mean %q? If you meant to send it as a prompt, use: freeapi chat %q", first, suggestion, first)
+				logging.Error("cli.command_typo", map[string]any{
+					"input":      first,
+					"suggestion": suggestion,
+				})
 				fmt.Fprintln(os.Stderr, err)
 				return err
 			}
 			// Treat as direct chat
+			mode = "direct-chat"
 			rootCmd.SetArgs(os.Args[1:])
 		}
 	}
+	logging.Info("cli.execute_start", map[string]any{
+		"mode":      mode,
+		"arg_count": len(os.Args) - 1,
+	})
 
 	if err := rootCmd.Execute(); err != nil {
+		logging.Error("cli.execute_error", map[string]any{
+			"mode":  mode,
+			"error": err.Error(),
+		})
 		fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	logging.Info("cli.execute_finish", map[string]any{
+		"mode": mode,
+	})
 	return nil
+}
+
+func initLogging() {
+	logging.Configure("", "")
+	cfg, err := config.Load()
+	if err != nil {
+		logging.Error("logging.config_load_error", map[string]any{
+			"error": err.Error(),
+		})
+		return
+	}
+	logging.Configure(cfg.LogPath, cfg.LogLevel)
 }
 
 func isSubcommand(s string) bool {
