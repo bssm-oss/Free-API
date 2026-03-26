@@ -187,7 +187,11 @@ freeapi chat --no-stream "질문"              # 스트리밍 없이 한번에
 ```bash
 freeapi server
 # 기본 주소: 127.0.0.1:8080
+# 문서 UI:  http://127.0.0.1:8080/swagger
+# OpenAPI:  http://127.0.0.1:8080/openapi.json
 ```
+
+자세한 사용 예시는 `docs/USAGE.md`의 로컬 HTTP 서버 섹션을 보면 됩니다.
 
 헬스 체크:
 
@@ -277,9 +281,15 @@ freeapi config set cloudflare.account_id "..."
 freeapi config set codex-cli.enabled false
 freeapi config set max_context_messages 100
 freeapi config set default_system_prompt "한국어로 답해줘"
+freeapi config set log_level debug
+freeapi config set log_path "/tmp/freeapi.log"
 ```
 
 대화 기록: `~/.local/share/freeapi/conversations.db` (SQLite)
+
+실행 로그: `~/.local/share/freeapi/logs/freeapi.log` (JSONL)
+
+디버깅이 필요하면 `freeapi config set log_level debug`로 올리면 됩니다. 로그에는 provider 시도/실패, CLI timeout, HTTP 서버 요청, 대화 저장 오류 같은 메타데이터가 남고, 프롬프트/응답 원문은 기본적으로 저장하지 않습니다.
 
 ## 빌드
 
